@@ -15,6 +15,31 @@ class NERModel(nn.Module):
         logits = self.out_tag(sequence_output)
         return logits
 
+def tokenize_sentences(sentence_words, tokenizer, max_len):
+    raw_data = []
+    sentence_ids = sentence_words.sentence_id.unique()
+    for sentence_id in sentence_ids:        
+        sent_data = []
+        sent_data.append({'sentence_id': sentence_id, 'token': tokenizer.cls_token, 'stem': tokenizer.cls_token, 'token_id': tokenizer.cls_token_id,  'label': tokenizer.cls_token,  'attention_mask': 1, 'target_mask' : 1})
+        sent_rolled = sentence_words[sentence_words.sentence_id == sentence_id]
+        for _, row in sent_rolled.iterrows():
+            stem = row['token']            
+            label = row['label']        
+            token = tokenizer.tokenize(stem)          
+            for m in range(len(token)):      
+                if len(sent_data) >= max_len - 1:
+                    break                    
+                is_root = 1 if m == 0 else 0 
+                sent_data.append({'sentence_id': sentence_id, 'token': token[m], 'stem': stem, 'token_id':  tokenizer.convert_tokens_to_ids(token[m]),  'label': label, 'attention_mask': 1, 'target_mask' : is_root})
+
+        sent_data.append({'sentence_id': sentence_id, 'token': tokenizer.sep_token, 'stem': tokenizer.sep_token, 'token_id': tokenizer.sep_token_id,  'label': tokenizer.sep_token,  'attention_mask': 1, 'target_mask' : 1})        
+        pad_len = max_len - len(sent_data)
+        for i in range(pad_len):
+             sent_data.append({'sentence_id': sentence_id, 'token': tokenizer.pad_token, 'stem': tokenizer.pad_token, 'token_id': tokenizer.pad_token_id,  'label': tokenizer.pad_token,  'attention_mask': 0, 'target_mask' : 0})      
+
+        raw_data.extend(sent_data)    
+    return pd.DataFrame(raw_data)
+
 model = NERModel(n_tags)
 model.load_state_dict(torch.load('E:\\NERData\\model\\model_original_5'))
 model = model.to(device)
